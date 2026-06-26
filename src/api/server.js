@@ -1,0 +1,297 @@
+import express from 'express';
+import { exec } from 'child_process';
+import cors from 'cors';
+import path from 'path';
+import { WebSocketServer } from 'ws';
+import { PORT, ROOT_DIR, AGENT_NAME } from '../../config/index.js';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(ROOT_DIR, 'public')));
+
+import { Orchestrator } from '../orchestrator/index.js';
+import { addRagMemory } from '../memory/rag.js';
+
+import { METRICS, MODEL_REGISTRY, modelWarmth, COLD_THRESHOLD_MS, loadMetrics } from '../../config/index.js';
+import { getPcDiagnostics } from '../hardware/system.js';
+import fs from 'fs/promises';
+
+const orchestrator = new Orchestrator();
+
+// ── CONVERSATION PERSISTENCE ──────────────────────────────────────────────────
+const CONV_DIR = path.join(ROOT_DIR, 'vault', 'conversations');
+
+async function ensureConvDir() {
+    await fs.mkdir(CONV_DIR, { recursive: true });
+}
+
+function newConversationId() {
+    return `conv_${Date.now()}`;
+}
+
+async function saveConversation(conv) {
+    await ensureConvDir();
+    await fs.writeFile(path.join(CONV_DIR, `${conv.id}.json`), JSON.stringify(conv, null, 2), 'utf8');
+}
+
+async function loadConversation(id) {
+    try {
+        const raw = await fs.readFile(path.join(CONV_DIR, `${id}.json`), 'utf8');
+        return JSON.parse(raw);
+    } catch { return null; }
+}
+
+async function listConversations() {
+    await ensureConvDir();
+    const files = await fs.readdir(CONV_DIR);
+    const convs = [];
+    for (const f of files.filter(f => f.endsWith('.json')).reverse()) {
+        try {
+            const raw = await fs.readFile(path.join(CONV_DIR, f), 'utf8');
+            const { id, title, createdAt, messages } = JSON.parse(raw);
+            convs.push({ id, title, createdAt, messageCount: messages.length });
+        } catch {}
+    }
+    return convs;
+}
+
+// Active conversation state
+let activeConversation = null;
+
+async function getOrCreateConversation() {
+    if (!activeConversation) {
+        activeConversation = {
+            id: newConversationId(),
+            title: 'New Conversation',
+            createdAt: new Date().toISOString(),
+            messages: []
+        };
+    }
+    return activeConversation;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Minimal API for UI testing
+app.get('/api/config', (req, res) => {
+    res.json({ agentName: AGENT_NAME });
+});
+
+// ── CONVERSATION API ──
+app.get('/api/conversations', async (req, res) => {
+    res.json(await listConversations());
+});
+
+app.get('/api/conversations/active', async (req, res) => {
+    const conv = await getOrCreateConversation();
+    res.json(conv);
+});
+
+app.post('/api/conversations/new', async (req, res) => {
+    // Save current conversation before creating a new one
+    if (activeConversation && activeConversation.messages.length > 0) {
+        await saveConversation(activeConversation);
+    }
+    activeConversation = {
+        id: newConversationId(),
+        title: 'New Conversation',
+        createdAt: new Date().toISOString(),
+        messages: []
+    };
+    res.json(activeConversation);
+});
+
+app.post('/api/conversations/:id/load', async (req, res) => {
+    // Save current conversation first
+    if (activeConversation && activeConversation.messages.length > 0) {
+        await saveConversation(activeConversation);
+    }
+    const conv = await loadConversation(req.params.id);
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    activeConversation = conv;
+    res.json(conv);
+});
+
+app.delete('/api/conversations/:id', async (req, res) => {
+    try {
+        await fs.unlink(path.join(CONV_DIR, `${req.params.id}.json`));
+        if (activeConversation?.id === req.params.id) activeConversation = null;
+        res.json({ success: true });
+    } catch { res.status(404).json({ error: 'Not found' }); }
+});
+
+app.get('/api/stats', async (req, res) => {
+    try {
+        const stats = await getPcDiagnostics();
+        res.json({ ...stats, metrics: METRICS, registry: MODEL_REGISTRY });
+    } catch {
+        res.status(500).json({ error: 'Failed' });
+    }
+});
+
+app.get('/api/warmth', (req, res) => {
+    const status = {};
+    for (const model of Object.keys(MODEL_REGISTRY)) {
+        const lastUsed = modelWarmth[model] || 0;
+        status[model] = {
+            warm: lastUsed > 0 && (Date.now() - lastUsed) < COLD_THRESHOLD_MS,
+            lastUsed: lastUsed > 0 ? new Date(lastUsed).toISOString() : null,
+            info: MODEL_REGISTRY[model]
+        };
+    }
+    res.json(status);
+});
+
+app.get('/api/scripts', async (req, res) => {
+    const scriptsDir = path.join(ROOT_DIR, 'scripts');
+    try {
+        await fs.access(scriptsDir);
+        
+        async function getFiles(dir, prefix = '') {
+            let results = [];
+            const list = await fs.readdir(dir, { withFileTypes: true });
+            for (const file of list) {
+                if (file.isDirectory()) {
+                    const subResults = await getFiles(path.join(dir, file.name), path.join(prefix, file.name));
+                    results = results.concat(subResults);
+                } else if (file.name.endsWith('.ps1') || file.name.endsWith('.js')) {
+                    const relPath = path.join(prefix, file.name).replace(/\\/g, '/');
+                    results.push(relPath);
+                }
+            }
+            return results;
+        }
+        
+        const files = await getFiles(scriptsDir);
+        let meta = {};
+        try { meta = JSON.parse(await fs.readFile(path.join(scriptsDir, 'meta.json'), 'utf8')); } catch {}
+        res.json({ scripts: files.map(f => ({ name: f, description: meta[f] || meta[path.basename(f)] || '', size: 0 })) });
+    } catch {
+        res.json({ scripts: [] });
+    }
+});
+
+// Legacy history API (reads from active conversation)
+app.get('/api/history', async (req, res) => {
+    const conv = await getOrCreateConversation();
+    res.json(conv.messages);
+});
+
+app.delete('/api/history', async (req, res) => {
+    if (activeConversation) {
+        activeConversation.messages = [];
+        activeConversation.title = 'New Conversation';
+        await saveConversation(activeConversation);
+    }
+    res.json({ success: true });
+});
+
+app.post('/v1/chat/completions', async (req, res) => {
+    let messages = req.body.messages || [];
+    const userQuestion = messages[messages.length - 1]?.content || "";
+    
+    const conv = await getOrCreateConversation();
+    
+    // Save user message
+    if (userQuestion) {
+        conv.messages.push({ role: 'user', content: userQuestion });
+        // Auto-title from first message
+        if (conv.messages.filter(m => m.role === 'user').length === 1) {
+            conv.title = userQuestion.length > 50 ? userQuestion.slice(0, 47) + '...' : userQuestion;
+        }
+    }
+    
+    // Broadcast helper
+    const broadcastMsg = (msgObj) => {
+        const payload = JSON.stringify(msgObj);
+        for (const client of wss.clients) {
+            if (client.readyState === 1) client.send(payload);
+        }
+    };
+    
+    broadcastMsg({ type: 'status', stage: 'thinking', message: `Orchestrator analyzing intent...` });
+    
+    try {
+        const userMsgCount = conv.messages.filter(m => m.role === 'user').length;
+        let responseData;
+        
+        if (userMsgCount === 1) {
+            responseData = await orchestrator.processIntent(userQuestion, conv.messages.slice(0, -1), broadcastMsg);
+        } else {
+            responseData = await orchestrator.processIntentLocalFirst(userQuestion, conv.messages.slice(0, -1), broadcastMsg);
+        }
+        
+        const responseText = responseData.text || "No response generated.";
+        const modelUsed = responseData.modelUsed || "hybrid-engine";
+        
+        broadcastMsg({ type: 'status', stage: 'done', message: '' });
+        res.json({
+            id: `chatcmpl-${Date.now()}`,
+            object: "chat.completion",
+            created: Math.floor(Date.now() / 1000),
+            model: modelUsed,
+            choices: [{ message: { role: "assistant", content: responseText } }]
+        });
+        
+        // Save assistant message and persist
+        conv.messages.push({ role: 'assistant', content: responseText });
+        await saveConversation(conv);
+        
+        // Broadcast updated conversation list
+        broadcastMsg({ type: 'conv_updated', id: conv.id, title: conv.title });
+        
+        addRagMemory(`User: ${userQuestion}\n${AGENT_NAME}: ${responseText}`);
+    } catch (e) {
+        broadcastMsg({ type: 'status', stage: 'done', message: '' });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+import { spawn } from 'child_process';
+
+let openClawProcess = null;
+
+await loadMetrics();
+const server = app.listen(PORT, async () => {
+    const url = `http://localhost:${PORT}`;
+    console.log(`\n${AGENT_NAME} Hub running on ${url}`);
+    
+    // Auto-start OpenClaw silently in background
+    const openClawDir = path.join(ROOT_DIR, 'src', 'gateway', 'openclaw');
+    try {
+        await fs.access(openClawDir);
+        console.log(`   Starting OpenClaw Gateway silently in background...`);
+        openClawProcess = spawn('node', ['index.js'], { cwd: openClawDir });
+        
+        openClawProcess.stdout.on('data', d => {
+            const payload = JSON.stringify({ type: 'log', message: d.toString().trim() });
+            for (const client of wss.clients) {
+                if (client.readyState === 1) client.send(payload);
+            }
+        });
+        
+        openClawProcess.stderr.on('data', d => {
+            const payload = JSON.stringify({ type: 'log', message: `[ERROR] ${d.toString().trim()}` });
+            for (const client of wss.clients) {
+                if (client.readyState === 1) client.send(payload);
+            }
+        });
+        
+        openClawProcess.on('close', c => { openClawProcess = null; });
+    } catch (e) {
+        console.log("   OpenClaw directory not found or error starting it.", e.message);
+    }
+
+    // Auto-launch Agent UI in default browser (handled by Electron main.js)
+    console.log(`[SYSTEM] ${AGENT_NAME} Server running. Waiting for Desktop App to connect...`);
+});
+
+const wss = new WebSocketServer({ server });
+wss.on('connection', ws => {
+    ws.send(JSON.stringify({ type: 'log', message: `🔗 Connected to V2 Console...` }));
+});
+
+process.on('SIGINT', () => {
+    if (openClawProcess) openClawProcess.kill('SIGKILL');
+    process.exit();
+});

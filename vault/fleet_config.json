@@ -1,0 +1,5 @@
+{
+  "planner": "qwen2.5:14b",
+  "synthesiser": "gemma2:9b",
+  "chat": "llama3.1:8b"
+}

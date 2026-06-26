@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">AI Hub — Loading...</title>
+    <!-- Add Favicon to fix 404 -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles/index.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="pulse-mini"></div>
+                <h1 class="logo-text" id="logo-name">AGENT</h1>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-target="console-view">Terminal</button>
+                <button class="nav-btn" data-target="system-view">System Health</button>
+                <button class="nav-btn" data-target="models-view">Model Fleet</button>
+                <button class="nav-btn" data-target="openclaw-view">OpenClaw Gateway</button>
+                <button class="nav-btn" data-target="vault-view">Automation Vault</button>
+                <button class="nav-btn" data-target="settings-view">Settings</button>
+            </nav>
+            
+            <div class="status-indicator" style="margin-top: auto; display: flex; flex-direction: column; gap: 0.5rem;">
+                <div>
+                    <div class="status-dot" style="width: 10px; height: 10px; background: var(--accent-green); border-radius: 50%; display: inline-block;"></div>
+                    <span style="font-size: 0.9rem; color: var(--text-muted); margin-left: 0.5rem;">System Online</span>
+                </div>
+                <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div>Cloud Tokens: <span id="nav-cloud-tokens" style="color: var(--accent-blue);">0</span></div>
+                    <div style="margin-top: 0.2rem;">Local Tokens: <span id="nav-local-tokens" style="color: var(--accent-green);">0</span></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <section id="console-view" class="view-section active">
+                
+                <!-- NEW: Dynamic Pulse Line Graphic -->
+                <div class="visualizer-container">
+                    <div class="pulse-container" id="pulse-container">
+                        <svg class="pulse-svg" viewBox="0 0 800 200" preserveAspectRatio="none">
+                            <path id="pulse-path" class="pulse-path idle" d="M 0 100 L 800 100" />
+                        </svg>
+                        <div class="pulse-glow" id="pulse-glow"></div>
+                        <div class="status-label" id="status-label">IDLE</div>
+                    </div>
+                </div>
+
+                <div class="console-layout">
+                    <!-- Conversation History Sidebar -->
+                    <div class="conv-sidebar">
+                        <button id="new-chat-btn" class="new-chat-btn">+ New Chat</button>
+                        <div id="conv-list" class="conv-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Chat Panel -->
+                    <div class="chat-container">
+                        <div id="chat-history" class="chat-history">
+                            <div class="message system-msg" id="welcome-msg">Welcome to <strong id="welcome-agent-name">your Agent</strong> — Cloud Orchestrated, Locally Executed.</div>
+                        </div>
+
+                        <div class="input-area">
+                            <textarea id="chat-input" placeholder="Initiate Orchestrator protocol..." rows="1"></textarea>
+                            <button id="send-btn" class="action-btn">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- SYSTEM HEALTH VIEW -->
+            <section id="system-view" class="view-section">
+                <h2 class="section-title">System Telemetry</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h3>CPU Usage</h3>
+                        <div class="metric-value"><span id="cpu-val">--</span>%</div>
+                        <div class="progress-bar"><div id="cpu-bar" class="progress-fill" style="width: 0%"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>Memory Utilization</h3>
+                        <div class="metric-value"><span id="mem-val">--</span>%</div>
+                        <div class="progress-bar"><div id="mem-bar" class="progress-fill" style="width: 0%"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>Main Drive Storage</h3>
+                        <div class="metric-value"><span id="disk-val">--</span>%</div>
+                        <div class="progress-bar"><div id="disk-bar" class="progress-fill" style="width: 0%"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>GPU Core Usage</h3>
+                        <div class="metric-value"><span id="gpu-val">--</span>%</div>
+                        <div class="progress-bar"><div id="gpu-bar" class="progress-fill" style="width: 0%"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>VRAM Utilization</h3>
+                        <div class="metric-value"><span id="vram-val">--</span>%</div>
+                        <div class="progress-bar"><div id="vram-bar" class="progress-fill" style="width: 0%"></div></div>
+                    </div>
+                </div>
+
+                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr; margin-top: 1rem;">
+                    <div class="metric-card">
+                        <h3>Public Tokens (Gemini)</h3>
+                        <div style="display: flex; gap: 2rem;">
+                            <div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">Session</div>
+                                <div class="metric-value" style="font-size: 2rem;"><span id="public-session-tokens-val">0</span></div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">Historic</div>
+                                <div class="metric-value" style="font-size: 1.5rem; color: var(--text-muted); text-shadow: none;"><span id="public-historic-tokens-val">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>Local Tokens (Ollama)</h3>
+                        <div style="display: flex; gap: 2rem;">
+                            <div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">Session</div>
+                                <div class="metric-value" style="font-size: 2rem;"><span id="local-session-tokens-val">0</span></div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">Historic</div>
+                                <div class="metric-value" style="font-size: 1.5rem; color: var(--text-muted); text-shadow: none;"><span id="local-historic-tokens-val">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MODEL FLEET VIEW -->
+            <section id="models-view" class="view-section">
+                <h2 class="section-title">Local Model Fleet</h2>
+                <p class="section-description">Live warmth status of your locally installed Ollama models. Models turn warm after first use and stay warm for 5 minutes.</p>
+                <div class="models-grid" id="models-grid">
+                    <div class="model-fleet-card loading">
+                        <div class="model-warmth-dot"></div>
+                        <div>Loading model status...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OPENCLAW GATEWAY VIEW -->
+            <section id="openclaw-view" class="view-section">
+                <h2 class="section-title">OpenClaw Gateway</h2>
+                <div class="card" style="background: var(--panel-bg); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border-color);">
+                    <p class="description">Traffic Master for WhatsApp → Local Agent routing. Manages session state, sends immediate acknowledgments, and routes to the right specialist model.</p>
+                </div>
+                <div class="terminal-container" style="background: #000; border-radius: 8px; flex: 1; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color);">
+                    <div class="terminal-header" style="background: #111; padding: 0.5rem 1rem; display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.9rem; border-bottom: 1px solid #333;">
+                        <span>Gateway &amp; Pipeline Logs</span>
+                        <button id="clear-logs-btn" style="background: none; border: 1px solid #555; color: #ccc; cursor: pointer; border-radius: 4px; padding: 2px 8px;">Clear</button>
+                    </div>
+                    <div id="terminal-output" style="padding: 1rem; overflow-y: auto; flex: 1; font-family: Consolas, monospace; font-size: 0.85rem; color: #10b981;">
+                        <div>Waiting for connection...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- AUTOMATION VAULT VIEW -->
+            <section id="vault-view" class="view-section">
+                <h2 class="section-title">Automation Vault</h2>
+                <p class="section-description">A curated library of reusable scripts your Agent has built for you.</p>
+                <div class="models-grid" id="vault-grid">
+                    <div class="model-fleet-card loading">
+                        <div>Loading scripts...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SETTINGS VIEW -->
+            <section id="settings-view" class="view-section">
+                <h2 class="section-title">Configuration</h2>
+                <div class="settings-grid">
+                    <div class="setting-card">
+                        <h3>AI Architecture</h3>
+                        <p>
+                            <strong>Orchestrator:</strong> Gemini 2.5 Flash (cloud)<br>
+                            <strong>Execution Fleet:</strong> Local Ollama models at <code>127.0.0.1:11434</code><br>
+                            <strong>Gateway:</strong> OpenClaw (WhatsApp traffic master)
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="components/index.js"></script>
+</body>
+</html>

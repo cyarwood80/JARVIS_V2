@@ -1,0 +1,14 @@
+{
+  "historicTokensLocal": 580,
+  "historicTokensPublic": 1246,
+  "models": {
+    "llama3.1:8b": {
+      "runs": 2,
+      "tokens": 353
+    },
+    "qwen2.5:14b": {
+      "runs": 2,
+      "tokens": 227
+    }
+  }
+}
