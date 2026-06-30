@@ -12,9 +12,23 @@ app.use(express.static(path.join(ROOT_DIR, 'public')));
 
 import { Orchestrator } from '../orchestrator/index.js';
 import { addRagMemory } from '../memory/rag.js';
+import { toolRegistry } from '../gateway/toolRegistry.js';
+import { resolveApproval } from '../agents/supervisor.js';
+import { GEMINI_API_KEY, updateCloudSettings, CLOUD_MODEL } from '../../config/index.js';
+import { listDaemons, killDaemon, setDaemonBroadcaster } from '../daemon/manager.js';
 
 import { METRICS, MODEL_REGISTRY, modelWarmth, COLD_THRESHOLD_MS, loadMetrics } from '../../config/index.js';
 import { getPcDiagnostics } from '../hardware/system.js';
+
+// Give daemon manager access to broadcast events
+setDaemonBroadcaster((msgObj) => {
+    wss.clients.forEach(c => {
+        if (c.readyState === 1) {
+            c.send(JSON.stringify(msgObj));
+        }
+    });
+});
+
 import fs from 'fs/promises';
 
 const orchestrator = new Orchestrator();
@@ -118,6 +132,89 @@ app.delete('/api/conversations/:id', async (req, res) => {
         if (activeConversation?.id === req.params.id) activeConversation = null;
         res.json({ success: true });
     } catch { res.status(404).json({ error: 'Not found' }); }
+});
+
+// ── TOOLS API — all registered tools (native + gateway + vault) ──────────────
+app.get('/api/tools', (req, res) => {
+    const all = toolRegistry.getAllTools();
+    res.json(all);
+});
+
+// ── SETTINGS API ──────────────
+app.get('/api/settings/cloud', (req, res) => {
+    res.json({
+        hasApiKey: !!GEMINI_API_KEY,
+        cloudModel: CLOUD_MODEL || 'gemini-1.5-pro'
+    });
+});
+
+app.post('/api/settings/cloud', async (req, res) => {
+    const { apiKey, cloudModel } = req.body;
+    
+    // We only strictly require at least one thing to be updated
+    if (!apiKey && !cloudModel) return res.status(400).json({ error: 'Nothing to update' });
+
+    const success = await updateCloudSettings(apiKey, cloudModel);
+    if (success) {
+        // Invalidate models
+        orchestrator.invalidateModel();
+        
+        wss.clients.forEach(c => {
+            if (c.readyState === 1) {
+                c.send(JSON.stringify({ type: 'log', message: 'Cloud API settings updated successfully.' }));
+            }
+        });
+        
+        res.json({ success: true, message: 'Cloud settings updated and applied.' });
+    } else {
+        res.status(500).json({ error: 'Failed to update Cloud Settings' });
+    }
+});
+
+// ── DAEMON API ──────────────
+app.get('/api/daemons', (req, res) => {
+    res.json(listDaemons());
+});
+
+app.post('/api/daemons/kill', (req, res) => {
+    const { id } = req.body;
+    if (killDaemon(id)) {
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ error: 'Failed to kill daemon or daemon not found.' });
+    }
+});
+
+app.get('/api/settings/cloud/models', async (req, res) => {
+    const key = GEMINI_API_KEY;
+    const defaultModels = ['gemini-pro-latest', 'gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'];
+    
+    if (!key) {
+        return res.json({ models: defaultModels });
+    }
+    
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        if (!response.ok) throw new Error('API request failed');
+        const data = await response.json();
+        
+        if (data.models) {
+            const useful = data.models
+                .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+                .map(m => m.name.replace('models/', ''))
+                // Sort to put Pro/Thinking models first
+                .sort((a, b) => {
+                    if (a.includes('pro') && !b.includes('pro')) return -1;
+                    if (!a.includes('pro') && b.includes('pro')) return 1;
+                    return 0;
+                });
+            return res.json({ models: useful });
+        }
+        res.json({ models: defaultModels });
+    } catch (e) {
+        console.error('Failed to query Gemini models:', e.message);
+        res.json({ models: defaultModels });
+    }
 });
 
 app.get('/api/stats', async (req, res) => {
@@ -252,6 +349,10 @@ import { spawn } from 'child_process';
 let openClawProcess = null;
 
 await loadMetrics();
+
+// Discover all tools before accepting requests
+await toolRegistry.discover();
+
 const server = app.listen(PORT, async () => {
     const url = `http://localhost:${PORT}`;
     console.log(`\n${AGENT_NAME} Hub running on ${url}`);
@@ -289,6 +390,20 @@ const server = app.listen(PORT, async () => {
 const wss = new WebSocketServer({ server });
 wss.on('connection', ws => {
     ws.send(JSON.stringify({ type: 'log', message: `🔗 Connected to V2 Console...` }));
+
+    // Handle UI → Server messages (approval gate responses)
+    ws.on('message', (data) => {
+        try {
+            const msg = JSON.parse(data.toString());
+            // Approval gate: user responded to an approval_required event
+            if (msg.type === 'approval_response' && msg.requestId && msg.decision) {
+                resolveApproval(msg.requestId, msg.decision);
+                console.log(`[APPROVAL] ${msg.requestId} → ${msg.decision}`);
+            }
+        } catch (e) {
+            console.error('[WS] Failed to parse message:', e.message);
+        }
+    });
 });
 
 process.on('SIGINT', () => {

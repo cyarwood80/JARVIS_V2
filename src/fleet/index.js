@@ -5,9 +5,9 @@ import { spawn } from 'child_process';
 
 const KNOWN_CAPABILITIES = {
     'hermes3': { domain: 'general', specialisms: 'OS commands, system queries, user/session info, event logs, file operations', toolCalling: 'reliable' },
-    'qwen2.5': { domain: 'coding', specialisms: 'Code generation, scripts, debugging, programming tasks', toolCalling: 'very reliable' },
-    'gemma4': { domain: 'reasoning', specialisms: 'Complex multi-step reasoning, data analysis', toolCalling: 'native best' },
-    'llama3.1': { domain: 'general', specialisms: 'Simple factual Q&A, general conversation', toolCalling: 'limited' }
+    'qwen': { domain: 'coding', specialisms: 'Code generation, scripts, debugging, programming tasks', toolCalling: 'very reliable' },
+    'gemma': { domain: 'reasoning', specialisms: 'Complex multi-step reasoning, data analysis', toolCalling: 'native best' },
+    'llama': { domain: 'general', specialisms: 'Simple factual Q&A, general conversation', toolCalling: 'limited' }
 };
 
 // Role assignments from onboarding fleet negotiation (planner/synthesiser/chat)
@@ -87,10 +87,10 @@ export function getBestLocalModel(requiredCapability) {
         if (meta.role === preferredRole) score += 2000;
         if (meta.role === 'synthesiser' && requiredCapability === 'reasoning') score += 1500;
 
-        // Domain capability scoring as tiebreaker
-        if (requiredCapability === 'coding' && meta.domain === 'coding') score += 500;
-        if (requiredCapability === 'os' && name.includes('hermes3')) score += 500;
-        if (requiredCapability === 'reasoning' && meta.domain === 'reasoning') score += 500;
+        // Domain capability scoring as tiebreaker (boosted heavily to override raw size)
+        if (requiredCapability === 'coding' && meta.domain === 'coding') score += 1000;
+        if (requiredCapability === 'os' && name.includes('hermes3')) score += 1000;
+        if (requiredCapability === 'reasoning' && meta.domain === 'reasoning') score += 1000;
         if (requiredCapability === 'general' && meta.domain === 'general') score += 500;
 
         // HARDWARE LIMITER

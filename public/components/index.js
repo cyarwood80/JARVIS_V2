@@ -232,31 +232,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}`);
+    // Expose globally so the approval modal can send responses back
+    window._jarvisWS = ws;
     const terminalOutput = document.getElementById('terminal-output');
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+
+        // Route extended message types (approval, agent activity) to index.html handlers
+        if (window._handleJarvisExtendedMsg && window._handleJarvisExtendedMsg(data)) {
+            return; // handled
+        }
+
         if (data.type === 'log') {
             const div = document.createElement('div');
             div.textContent = data.message;
             if (data.message.includes('[ERROR]')) div.className = 'log-error';
-            else if (data.message.includes('▄') || data.message.includes('█')) div.className = 'log-success qr-code';
+            else if (data.message.includes('\u2584') || data.message.includes('\u2588')) div.className = 'log-success qr-code';
             else div.className = 'log-success';
-            
+
             if (terminalOutput) {
                 terminalOutput.appendChild(div);
                 terminalOutput.scrollTop = terminalOutput.scrollHeight;
             }
+            if (data.type === 'activity') updateStatus(data.agent, data.activity);
+            if (data.type === 'approval_required') showApprovalModal(data.data);
+            if (data.type === 'log') appendLog(data.message, data.isError);
+            if (data.type === 'tool_started') appendLog(`[TOOL] Starting: ${data.toolName}`);
+            
+            if (data.type === 'daemon_log') {
+                const logsDiv = document.getElementById('daemon-logs');
+                if (logsDiv) {
+                    if (logsDiv.innerHTML.includes('Waiting for background tasks...')) logsDiv.innerHTML = '';
+                    const div = document.createElement('div');
+                    div.style.color = data.isError ? '#ef4444' : '#a8f5c5';
+                    div.textContent = `[${data.name}] ${data.message}`;
+                    logsDiv.appendChild(div);
+                    logsDiv.scrollTop = logsDiv.scrollHeight;
+                }
+            }
+            if (data.type === 'daemon_status_update') {
+                refreshDaemons();
+            }
+            
+            // Re-enable input if idle
+            if (data.type === 'activity' && data.activity === 'IDLE') {
+            }
         } else if (data.type === 'status') {
-            if (data.stage === 'thinking') setSystemState('cloud', data.message.toUpperCase());
-            else if (data.stage === 'routing') setSystemState('local', `JSON MAP RETURNED: ${data.message.toUpperCase()}`);
-            else if (data.stage === 'executing' || data.stage === 'generating' || data.stage === 'synthesising') setSystemState('local', data.message.toUpperCase());
-            else if (data.stage === 'done') setSystemState('idle', 'IDLE');
+            if (data.stage === 'thinking')                                               setSystemState('cloud', data.message.toUpperCase());
+            else if (data.stage === 'routing')                                           setSystemState('local', `JSON MAP RETURNED: ${data.message.toUpperCase()}`);
+            else if (data.stage === 'planning')                                          setSystemState('cloud', data.message.toUpperCase());
+            else if (data.stage === 'autonomous')                                        setSystemState('local', data.message.toUpperCase());
+            else if (['executing','generating','synthesising'].includes(data.stage))     setSystemState('local', data.message.toUpperCase());
+            else if (data.stage === 'done')                                              setSystemState('idle', 'IDLE');
         } else if (data.type === 'conv_updated') {
             // Live-update sidebar when a conversation title is set
             renderConvList();
         }
     };
+
 
     if (document.getElementById('clear-logs-btn')) {
         document.getElementById('clear-logs-btn').addEventListener('click', () => {
@@ -360,5 +394,69 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchStats();
     fetchModels();
     fetchScripts();
-});
+    // ── DAEMONS LOGIC ─────────────────────────────────────────────────────────────
+    async function refreshDaemons() {
+        try {
+            const res = await fetch(`${protocol}//${window.location.host}/api/daemons`);
+            if (!res.ok) return;
+            const daemons = await res.json();
+            
+            const badge = document.getElementById('daemon-count-badge');
+            if (badge) {
+                badge.textContent = daemons.length;
+                badge.style.display = daemons.length > 0 ? 'inline-block' : 'none';
+            }
+            
+            const list = document.getElementById('daemons-list');
+            if (!list) return;
+            list.innerHTML = '';
+            
+            if (daemons.length === 0) {
+                list.innerHTML = '<div style="color: var(--text-muted); font-style: italic;">No background tasks currently running.</div>';
+                return;
+            }
+            
+            daemons.forEach(d => {
+                const card = document.createElement('div');
+                card.className = 'setting-card';
+                card.style.display = 'flex';
+                card.style.justifyContent = 'space-between';
+                card.style.alignItems = 'center';
+                card.style.padding = '0.8rem 1rem';
+                
+                const upTime = Math.floor((Date.now() - d.startTime) / 1000);
+                
+                card.innerHTML = `
+                    <div>
+                        <div style="font-weight: 600; color: #fff;">${d.name}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                            PID: ${d.pid} | Uptime: ${upTime}s
+                        </div>
+                    </div>
+                    <button class="action-btn" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="window.killDaemon('${d.id}')">Kill Task</button>
+                `;
+                list.appendChild(card);
+            });
+        } catch (e) {
+            console.error('Failed to fetch daemons', e);
+        }
+    }
+    
+    window.killDaemon = async (id) => {
+        try {
+            await fetch(`${protocol}//${window.location.host}/api/daemons/kill`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            refreshDaemons();
+        } catch (e) { console.error('Failed to kill daemon', e); }
+    };
+    
+    const refreshBtn = document.getElementById('refresh-daemons-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshDaemons);
 
+    // Initial load
+    fetchCapabilities();
+    refreshDaemons();
+});

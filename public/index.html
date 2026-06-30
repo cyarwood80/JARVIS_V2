@@ -4,14 +4,217 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="page-title">AI Hub — Loading...</title>
+    <meta name="description" content="JARVIS — Cloud Orchestrated, Locally Executed AI Agent. Privacy-first autonomous agent with multi-model fleet.">
     <!-- Add Favicon to fix 404 -->
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles/index.css">
+
+    <style>
+        /* ── Approval Modal ─────────────────────────────────────────── */
+        #approval-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        #approval-overlay.active { display: flex; }
+        #approval-modal {
+            background: linear-gradient(135deg, #0f1628 0%, #1a2340 100%);
+            border: 1px solid rgba(99,179,255,0.35);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 480px;
+            max-width: 95vw;
+            box-shadow: 0 0 60px rgba(99,179,255,0.15), 0 25px 50px rgba(0,0,0,0.5);
+            animation: modalIn 0.25s ease;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.92) translateY(-12px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        #approval-modal .modal-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+        #approval-modal h3 {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.5px;
+        }
+        #approval-modal .modal-agent-tag {
+            display: inline-block;
+            background: rgba(99,179,255,0.15);
+            border: 1px solid rgba(99,179,255,0.3);
+            color: #63b3ff;
+            font-size: 0.75rem;
+            padding: 2px 10px;
+            border-radius: 20px;
+            margin-bottom: 1rem;
+            font-family: var(--font-mono);
+        }
+        #approval-modal .modal-action-box {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: #a8f5c5;
+            margin-bottom: 1.5rem;
+            word-break: break-all;
+        }
+        #approval-modal .modal-warning {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        #approval-modal .modal-buttons {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        #approval-modal .modal-btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 0.65rem 1rem;
+            border-radius: 8px;
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        #btn-approve {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+        }
+        #btn-approve:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,185,129,0.35); }
+        #btn-approve-always {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: #fff;
+        }
+        #btn-approve-always:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(59,130,246,0.35); }
+        #btn-deny {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #ccc;
+        }
+        #btn-deny:hover { background: rgba(239,68,68,0.2); border-color: #ef4444; color: #ef4444; }
+
+        /* ── Agent Activity Feed ────────────────────────────────────── */
+        #agent-activity-panel {
+            background: rgba(0,0,0,0.35);
+            border: 1px solid rgba(99,179,255,0.2);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        #agent-activity-panel.active { display: block; }
+        #agent-activity-panel h4 {
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #63b3ff;
+            margin-bottom: 0.75rem;
+        }
+        .agent-task-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.03);
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+            border-left: 2px solid transparent;
+            transition: border-color 0.3s;
+        }
+        .agent-task-row.running  { border-color: #f59e0b; }
+        .agent-task-row.done     { border-color: #10b981; }
+        .agent-task-row.failed   { border-color: #ef4444; }
+        .agent-task-badge {
+            background: rgba(99,179,255,0.15);
+            color: #63b3ff;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+        .agent-task-msg { color: var(--text-muted); flex: 1; }
+        .agent-task-status { font-size: 0.85rem; }
+
+        /* ── Tools/Capabilities Panel ───────────────────────────────── */
+        .tool-group { margin-bottom: 1.5rem; }
+        .tool-group-title {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tool-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            transition: border-color 0.2s;
+        }
+        .tool-card:hover { border-color: rgba(99,179,255,0.4); }
+        .tool-icon { font-size: 1.2rem; flex-shrink: 0; }
+        .tool-info { flex: 1; }
+        .tool-name { font-family: var(--font-mono); font-size: 0.8rem; color: #a8f5c5; font-weight: 600; }
+        .tool-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+        .tool-source-badge {
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            white-space: nowrap;
+            align-self: flex-start;
+        }
+        .tool-source-badge.native  { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+        .tool-source-badge.gateway { background: rgba(99,179,255,0.15); color: #63b3ff; border: 1px solid rgba(99,179,255,0.3); }
+        .tool-source-badge.vault   { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    </style>
 </head>
 <body>
+    <!-- ── APPROVAL MODAL ─────────────────────────────────────────────────── -->
+    <div id="approval-overlay">
+        <div id="approval-modal">
+            <div class="modal-icon">🤖</div>
+            <h3>Agent Action Requires Approval</h3>
+            <div class="modal-agent-tag" id="modal-agent-tag">agent: researcher</div>
+            <div class="modal-action-box" id="modal-action-box">search_web({ query: "..." })</div>
+            <p class="modal-warning">
+                An autonomous agent wants to perform this action. You can approve it once, approve it permanently (whitelist), or deny it. Whitelisted actions run automatically in future agent plans.
+            </p>
+            <div class="modal-buttons">
+                <button id="btn-approve"        class="modal-btn">✅ Approve Once</button>
+                <button id="btn-approve-always" class="modal-btn">🔒 Approve Always</button>
+                <button id="btn-deny"           class="modal-btn">❌ Deny</button>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Sidebar / Navigation -->
         <aside class="sidebar">
@@ -26,9 +229,13 @@
                 <button class="nav-btn" data-target="models-view">Model Fleet</button>
                 <button class="nav-btn" data-target="openclaw-view">OpenClaw Gateway</button>
                 <button class="nav-btn" data-target="vault-view">Automation Vault</button>
+                <button class="nav-btn" data-target="daemons-view">
+                    Active Daemons <span id="daemon-count-badge" style="background: var(--accent-color); padding: 0.1rem 0.4rem; border-radius: 12px; font-size: 0.7rem; margin-left: 0.5rem; display: none;">0</span>
+                </button>
+                <button class="nav-btn" data-target="tools-view">Capabilities</button>
                 <button class="nav-btn" data-target="settings-view">Settings</button>
             </nav>
-            
+
             <div class="status-indicator" style="margin-top: auto; display: flex; flex-direction: column; gap: 0.5rem;">
                 <div>
                     <div class="status-dot" style="width: 10px; height: 10px; background: var(--accent-green); border-radius: 50%; display: inline-block;"></div>
@@ -44,8 +251,8 @@
         <!-- Main Content Area -->
         <main class="main-content">
             <section id="console-view" class="view-section active">
-                
-                <!-- NEW: Dynamic Pulse Line Graphic -->
+
+                <!-- Dynamic Pulse Line Graphic -->
                 <div class="visualizer-container">
                     <div class="pulse-container" id="pulse-container">
                         <svg class="pulse-svg" viewBox="0 0 800 200" preserveAspectRatio="none">
@@ -67,6 +274,12 @@
 
                     <!-- Chat Panel -->
                     <div class="chat-container">
+                        <!-- Agent Activity Feed (hidden until multi-agent plan starts) -->
+                        <div id="agent-activity-panel">
+                            <h4>⚡ Agent Activity</h4>
+                            <div id="agent-task-list"></div>
+                        </div>
+
                         <div id="chat-history" class="chat-history">
                             <div class="message system-msg" id="welcome-msg">Welcome to <strong id="welcome-agent-name">your Agent</strong> — Cloud Orchestrated, Locally Executed.</div>
                         </div>
@@ -78,7 +291,7 @@
                     </div>
                 </div>
             </section>
-            
+
             <!-- SYSTEM HEALTH VIEW -->
             <section id="system-view" class="view-section">
                 <h2 class="section-title">System Telemetry</h2>
@@ -172,12 +385,67 @@
             <!-- AUTOMATION VAULT VIEW -->
             <section id="vault-view" class="view-section">
                 <h2 class="section-title">Automation Vault</h2>
-                <p class="section-description">A curated library of reusable scripts your Agent has built for you.</p>
+                <p class="section-description">A curated library of reusable scripts your Agent has built for you. Jarvis automatically checks this vault before writing new code.</p>
                 <div class="models-grid" id="vault-grid">
                     <div class="model-fleet-card loading">
                         <div>Loading scripts...</div>
                     </div>
                 </div>
+            </section>
+
+                <!-- ACTIVE DAEMONS VIEW -->
+                <div id="daemons-view" class="view-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h2>Active Daemons</h2>
+                        <button class="action-btn" id="refresh-daemons-btn">Refresh</button>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Background processes proactively launched by JARVIS or triggered manually. These run continuously until killed.
+                    </p>
+                    
+                    <div id="daemons-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+                        <!-- JS injected daemon cards -->
+                    </div>
+
+                    <h3>Live Daemon Output</h3>
+                    <div id="daemon-logs" style="background: #111; color: #a8f5c5; font-family: var(--font-mono); font-size: 0.85rem; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color); height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem;">
+                        <!-- JS injected logs -->
+                        <div style="color: #666;">Waiting for background tasks...</div>
+                    </div>
+                </div>
+
+                <!-- CAPABILITIES VIEW -->
+            <section id="tools-view" class="view-section">
+                <h2 class="section-title">Action Capabilities</h2>
+
+                <!-- Distinction callout: This screen vs Automation Vault -->
+                <div style="display:flex; gap:1rem; margin-bottom:1.75rem; flex-wrap:wrap; flex-shrink:0;">
+                    <div style="flex:1; min-width:220px; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.25); border-radius:10px; padding:1rem 1.25rem;">
+                        <div style="font-size:0.7rem; letter-spacing:2px; text-transform:uppercase; color:#10b981; margin-bottom:0.4rem; font-family:var(--font-mono);">This screen</div>
+                        <div style="font-weight:600; color:#fff; margin-bottom:0.35rem;">Action Capabilities</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">The <strong style="color:#ccc">built-in actions</strong> Jarvis can perform &mdash; system commands, browser control, web search, notifications, and gateway calls. These are permanent engine abilities, always available regardless of what is in the Vault.</div>
+                    </div>
+                    <div style="flex:1; min-width:220px; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:1rem 1.25rem;">
+                        <div style="font-size:0.7rem; letter-spacing:2px; text-transform:uppercase; color:#f59e0b; margin-bottom:0.4rem; font-family:var(--font-mono);">Automation Vault tab</div>
+                        <div style="font-weight:600; color:#fff; margin-bottom:0.35rem;">Saved Scripts</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">The <strong style="color:#ccc">scripts Jarvis has written and saved</strong> for you &mdash; reusable PowerShell and JS files stored on disk. These grow over time as you build up your automation library.</div>
+                    </div>
+                </div>
+
+                <div id="tools-registry-container">
+                    <div class="model-fleet-card loading"><div>Loading capabilities...</div></div>
+                </div>
+
+                <div class="metric-card" style="margin-top:1.5rem; flex-shrink:0;">
+                    <h3 style="margin-bottom:0.5rem;">&#x1F512; Autonomous Whitelist</h3>
+                    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1rem; line-height:1.5;">
+                        Actions that can run <strong style="color:#fff">without confirmation</strong> when an autonomous agent requests them.
+                        Add entries via the <strong style="color:#fff">Approval Modal &rarr; Approve Always</strong>.
+                    </p>
+                    <div id="whitelist-display" style="font-family:var(--font-mono); font-size:0.78rem; color:#a8f5c5; background:rgba(0,0,0,0.35); padding:1rem; border-radius:6px; border:1px solid var(--border-color); line-height:2;">Loading whitelist...</div>
+                </div>
+            </section>
+
             </section>
 
             <!-- SETTINGS VIEW -->
@@ -187,10 +455,35 @@
                     <div class="setting-card">
                         <h3>AI Architecture</h3>
                         <p>
-                            <strong>Orchestrator:</strong> Gemini 2.5 Flash (cloud)<br>
+                            <strong>Orchestrator:</strong> <span id="ui-orchestrator-model">Gemini Online (Premium Reasoning)</span> (paid tier routing)<br>
+                            <strong>Planner:</strong> <span id="ui-planner-model">Gemini Online (Premium Reasoning)</span> (goal decomposition)<br>
                             <strong>Execution Fleet:</strong> Local Ollama models at <code>127.0.0.1:11434</code><br>
-                            <strong>Gateway:</strong> OpenClaw (WhatsApp traffic master)
+                            <strong>Gateway:</strong> OpenClaw (WhatsApp — local MCP capability)<br>
+                            <strong>Privacy:</strong> All reasoning stays local. Cloud only sees task descriptions.
                         </p>
+                    </div>
+                    <div class="setting-card">
+                        <h3>Security Model</h3>
+                        <p>
+                            <strong>Approval Gate:</strong> All autonomous tool calls pause for user confirmation.<br>
+                            <strong>Whitelist:</strong> Approved tools run autonomously in future agent plans.<br>
+                            <strong>Safe Tools:</strong> <code>search_web</code>, <code>get_pc_diagnostics</code>, <code>desktop_notify</code> are pre-whitelisted.<br>
+                            <strong>Command Execution:</strong> Always requires explicit approval (or whitelist).
+                        </p>
+                    </div>
+                    <div class="setting-card">
+                        <h3>Cloud API Configuration</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                            Enter your Google Gemini API key and preferred reasoning model (e.g., <code>gemini-1.5-pro</code>) to enable premium cloud capabilities.
+                        </p>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                            <input type="password" id="gemini-api-key-input" placeholder="Gemini API Key (leave blank to keep current)..." style="flex: 1; padding: 0.6rem 1rem; border-radius: 6px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: #fff; font-family: var(--font-mono); font-size: 0.85rem; outline: none;">
+                            <select id="cloud-model-input" style="width: 250px; padding: 0.6rem 1rem; border-radius: 6px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: #fff; font-family: var(--font-mono); font-size: 0.85rem; outline: none; appearance: auto;">
+                                <option value="gemini-1.5-pro">Loading models...</option>
+                            </select>
+                            <button id="save-api-key-btn" class="action-btn" style="padding: 0.6rem 1rem;">Save & Refresh</button>
+                        </div>
+                        <div id="api-key-status" style="margin-top: 0.5rem; font-size: 0.8rem; color: #10b981;"></div>
                     </div>
                 </div>
             </section>
@@ -198,5 +491,255 @@
     </div>
 
     <script src="components/index.js"></script>
+    <script>
+    // ── Approval Modal Logic ──────────────────────────────────────────────────
+    let currentApprovalRequestId = null;
+
+    function showApprovalModal(data) {
+        currentApprovalRequestId = data.requestId;
+        document.getElementById('modal-agent-tag').textContent = `agent: ${data.agent || 'unknown'}`;
+        document.getElementById('modal-action-box').textContent = data.description || `${data.toolName}(...)`;
+        document.getElementById('approval-overlay').classList.add('active');
+    }
+
+    function sendApprovalDecision(decision) {
+        if (!currentApprovalRequestId || !window._jarvisWS) return;
+        window._jarvisWS.send(JSON.stringify({
+            type: 'approval_response',
+            requestId: currentApprovalRequestId,
+            decision
+        }));
+        currentApprovalRequestId = null;
+        document.getElementById('approval-overlay').classList.remove('active');
+    }
+
+    document.getElementById('btn-approve').addEventListener('click',        () => sendApprovalDecision('approve'));
+    document.getElementById('btn-approve-always').addEventListener('click', () => sendApprovalDecision('approve_always'));
+    document.getElementById('btn-deny').addEventListener('click',           () => sendApprovalDecision('deny'));
+
+    // ── Settings Logic ────────────────────────────────────────────────────────
+    async function loadCloudSettings() {
+        try {
+            // First load the available models
+            const modelsRes = await fetch('/api/settings/cloud/models');
+            if (modelsRes.ok) {
+                const modelsData = await modelsRes.json();
+                const select = document.getElementById('cloud-model-input');
+                select.innerHTML = '';
+                modelsData.models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    select.appendChild(opt);
+                });
+            }
+
+            // Then load the active settings
+            const res = await fetch('/api/settings/cloud');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.cloudModel) {
+                    const select = document.getElementById('cloud-model-input');
+                    // Check if the current model is in the dropdown, if not add it
+                    if (!Array.from(select.options).some(o => o.value === data.cloudModel)) {
+                        const opt = document.createElement('option');
+                        opt.value = data.cloudModel;
+                        opt.textContent = data.cloudModel;
+                        select.appendChild(opt);
+                    }
+                    select.value = data.cloudModel;
+                    document.getElementById('ui-orchestrator-model').textContent = data.cloudModel;
+                    document.getElementById('ui-planner-model').textContent = data.cloudModel;
+                }
+            }
+        } catch (e) { console.error('Failed to load cloud settings', e); }
+    }
+    
+    // Call on load
+    loadCloudSettings();
+
+    document.getElementById('save-api-key-btn').addEventListener('click', async () => {
+        const keyInput = document.getElementById('gemini-api-key-input');
+        const modelInput = document.getElementById('cloud-model-input');
+        const status = document.getElementById('api-key-status');
+        
+        const key = keyInput.value.trim();
+        const model = modelInput.value.trim();
+        
+        if (!key && !model) {
+            status.textContent = 'Please enter a value to update.';
+            status.style.color = '#ef4444';
+            return;
+        }
+
+        status.textContent = 'Saving...';
+        status.style.color = '#a8f5c5';
+        
+        try {
+            const res = await fetch('/api/settings/cloud', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: key, cloudModel: model })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                status.textContent = data.message || 'Saved successfully! Jarvis is refreshed.';
+                status.style.color = '#10b981';
+                keyInput.value = ''; // clear password input after save
+                loadCloudSettings(); // refresh UI text
+            } else {
+                status.textContent = data.error || 'Failed to save.';
+                status.style.color = '#ef4444';
+            }
+        } catch (e) {
+            status.textContent = 'Network error saving settings. Ensure the backend is restarted.';
+            status.style.color = '#ef4444';
+        }
+    });
+
+    // ── Agent Activity Feed ───────────────────────────────────────────────────
+    const agentTasks = {};
+
+    function updateAgentActivity(event) {
+        const panel = document.getElementById('agent-activity-panel');
+        const list  = document.getElementById('agent-task-list');
+
+        if (event.type === 'plan_started') {
+            // Clear and show the panel
+            list.innerHTML = '';
+            Object.keys(agentTasks).forEach(k => delete agentTasks[k]);
+            panel.classList.add('active');
+
+            event.plan.tasks.forEach(task => {
+                agentTasks[task.id] = task;
+                const row = document.createElement('div');
+                row.className = 'agent-task-row running';
+                row.id = `agent-task-${task.id}`;
+                row.innerHTML = `
+                    <span class="agent-task-badge">${task.agent}</span>
+                    <span class="agent-task-msg">${task.instruction.slice(0, 80)}...</span>
+                    <span class="agent-task-status">⏳</span>`;
+                list.appendChild(row);
+            });
+            return;
+        }
+
+        if (event.type === 'task_done') {
+            const row = document.getElementById(`agent-task-${event.taskId}`);
+            if (row) { row.className = 'agent-task-row done'; row.querySelector('.agent-task-status').textContent = '✅'; }
+            return;
+        }
+
+        if (event.type === 'task_failed') {
+            const row = document.getElementById(`agent-task-${event.taskId}`);
+            if (row) { row.className = 'agent-task-row failed'; row.querySelector('.agent-task-status').textContent = '❌'; }
+            return;
+        }
+
+        if (event.type === 'agent_update') {
+            const row = document.getElementById(`agent-task-${event.taskId}`);
+            if (row) row.querySelector('.agent-task-msg').textContent = event.message.slice(0, 100);
+            return;
+        }
+
+        if (event.type === 'plan_done') {
+            setTimeout(() => { panel.classList.remove('active'); }, 4000);
+            return;
+        }
+    }
+
+    // ── Action Capabilities Panel ──────────────────────────────────────────────
+    // Vault management internals (save_script, run_saved_script etc.) are excluded
+    // here — they belong in the Automation Vault tab. This tab = what Jarvis can DO.
+    const VAULT_MGMT_TOOLS = new Set(['get_vault_index','save_script','run_saved_script','list_scripts']);
+
+    const TOOL_CATEGORIES = [
+        { key:'system',  label:'System & OS',          icon:'🖥️',  tools:['get_pc_diagnostics','execute_command','open_application'] },
+        { key:'browser', label:'Browser Control',      icon:'🌐',  tools:['browser_open','browser_click','browser_type','browser_extract','browser_close'] },
+        { key:'web',     label:'Web & Search',          icon:'🔍',  tools:['search_web'] },
+        { key:'memory',  label:'Memory Management',    icon:'🧠',  tools:['manage_memory'] },
+        { key:'notify',  label:'Notifications',        icon:'🔔',  tools:['desktop_notify','voice_alert','whatsapp_push'] },
+    ];
+
+    async function loadToolsPanel() {
+        const container = document.getElementById('tools-registry-container');
+        const wlDisplay = document.getElementById('whitelist-display');
+        try {
+            const tools = await fetch('/api/tools').then(r => r.json());
+
+            const nativeLookup = {};
+            (tools.native || []).forEach(t => { if (!VAULT_MGMT_TOOLS.has(t.name)) nativeLookup[t.name] = t; });
+
+            container.innerHTML = '';
+
+            // Categorised native tool groups
+            const categorisedNames = new Set(TOOL_CATEGORIES.flatMap(c => c.tools));
+            for (const cat of TOOL_CATEGORIES) {
+                const catTools = cat.tools.map(n => nativeLookup[n]).filter(Boolean);
+                const group = buildCategoryGroup(cat.label, cat.icon, catTools, 'native');
+                if (group) container.appendChild(group);
+            }
+
+            // Uncategorised native tools (catch-all)
+            const uncategorised = (tools.native || []).filter(t => !VAULT_MGMT_TOOLS.has(t.name) && !categorisedNames.has(t.name));
+            if (uncategorised.length > 0) {
+                const group = buildCategoryGroup('Other Actions', '⚡', uncategorised, 'native');
+                if (group) container.appendChild(group);
+            }
+
+            // OpenClaw gateway tools (local MCP)
+            const gwGroup = buildCategoryGroup('OpenClaw Gateway  —  Local MCP', '📡', tools.gateway || [], 'gateway');
+            if (gwGroup) container.appendChild(gwGroup);
+
+            // Whitelist display
+            const preApproved = ['search_web', 'get_pc_diagnostics', 'desktop_notify', 'list_scripts', 'get_vault_index'];
+            wlDisplay.textContent = preApproved.map(t => t + ' ✅').join('   ') + '\n(Add more via the Approval Modal → "Approve Always")';
+
+        } catch (e) {
+            container.innerHTML = '<div class="model-fleet-card" style="color:#ef4444">Failed to load capabilities: ' + e.message + '</div>';
+        }
+    }
+
+    function buildCategoryGroup(title, icon, tools, sourceClass) {
+        if (!tools || tools.length === 0) return null;
+        const group = document.createElement('div');
+        group.className = 'tool-group';
+        group.innerHTML = '<div class="tool-group-title">' + icon + '&nbsp;&nbsp;' + title + ' <span style="opacity:0.5">(' + tools.length + ')</span></div>';
+        tools.forEach(tool => {
+            const card = document.createElement('div');
+            card.className = 'tool-card';
+            card.innerHTML =
+                '<div class="tool-info">' +
+                    '<div class="tool-name">' + (tool.name || tool) + '</div>' +
+                    '<div class="tool-desc">' + (tool.description || '') + '</div>' +
+                '</div>' +
+                '<span class="tool-source-badge ' + sourceClass + '">' + sourceClass + '</span>';
+            group.appendChild(card);
+        });
+        return group;
+    }
+
+        // Hook into nav to load tools panel on demand
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.nav-btn[data-target="tools-view"]').forEach(btn => {
+            btn.addEventListener('click', loadToolsPanel);
+        });
+    });
+
+    // ── WebSocket message hook for approval + activity ────────────────────────
+    // Expose handler for the main components/index.js WebSocket to call
+    window._handleJarvisExtendedMsg = function(msg) {
+        if (msg.type === 'approval_required') {
+            showApprovalModal(msg);
+            return true;
+        }
+        if (['plan_started','plan_done','task_started','task_done','task_failed','agent_update'].includes(msg.type)) {
+            updateAgentActivity(msg);
+            return true;
+        }
+        return false;
+    };
+    </script>
 </body>
 </html>

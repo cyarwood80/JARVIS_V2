@@ -11,6 +11,9 @@ let globalPage = null;
 import { ROOT_DIR, PORT, AGENT_NAME } from '../../config/index.js';
 import { manageMemoryAction } from '../memory/index.js';
 import { getPcDiagnostics } from '../hardware/system.js';
+import { getVaultIndex } from '../vault/vaultIndex.js';
+import { startDaemon } from '../daemon/manager.js';
+
 
 async function fileExists(filePath) {
     try {
@@ -49,6 +52,13 @@ async function addApprovedCommand(command) {
 export async function executeTool(name, args, chatHistory, broadcastMsg) {
     console.log(`[TOOL CALLED] ${name}`, args);
 
+    if (name === 'get_vault_index') {
+        const scripts = await getVaultIndex();
+        if (scripts.length === 0) return 'The Automation Vault is empty. No scripts have been saved yet.';
+        const list = scripts.map(s => `- ${s.name} [${s.type}]: ${s.description}`).join('\n');
+        return `Automation Vault contents (${scripts.length} script${scripts.length !== 1 ? 's' : ''}):\n${list}`;
+    }
+
     if (name === 'get_pc_diagnostics') {
         const stats = await getPcDiagnostics();
         return `CPU Usage: ${stats.cpu}%, Memory Usage: ${stats.memory}%, Disk Usage: ${stats.disk}%`;
@@ -86,6 +96,12 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
         meta[filename] = args.description || `Created by ${AGENT_NAME}`;
         await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
 
+        // Refresh the tool registry so the new script is immediately discoverable
+        try {
+            const { toolRegistry } = await import('../gateway/toolRegistry.js');
+            await toolRegistry.refreshVault();
+        } catch { /* non-fatal — registry will refresh on next query */ }
+
         return `Successfully saved script: ${filename} to the Automation Vault.`;
     }
 
@@ -108,6 +124,21 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
                 else resolve(stdout.trim() || '[Script ran successfully with no output]');
             });
         });
+    }
+
+    if (name === 'run_daemon_script') {
+        const scriptsDir = path.join(ROOT_DIR, 'scripts');
+        const scriptPath = path.join(scriptsDir, args.scriptName);
+        if (!(await fileExists(scriptPath))) {
+            return `Error: Script '${args.scriptName}' does not exist in the Automation Vault.`;
+        }
+        
+        try {
+            const daemon = startDaemon(args.scriptName, args.args || '');
+            return `Daemon successfully started in background. Name: ${daemon.name}, PID: ${daemon.pid}, ID: ${daemon.id}. You do not need to wait for its output.`;
+        } catch (e) {
+            return `Error starting daemon: ${e.message}`;
+        }
     }
 
     if (name === 'list_scripts') {

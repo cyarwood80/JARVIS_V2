@@ -205,7 +205,7 @@ export async function runSetupWizard() {
 
 async function negotiateFleetWithGemini(geminiKey, profile, installedModels, userGoal, agentName) {
     const genAI = new GoogleGenerativeAI(geminiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: process.env.CLOUD_MODEL || 'gemini-1.5-pro' });
 
     const basePrompt = `You are a Senior AI Hardware Architect. Your job is to curate the absolute best 3-model local AI fleet for a user running Ollama.
 The fleet must contain EXACTLY three roles:

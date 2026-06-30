@@ -1,5 +1,13 @@
 export const toolDefinitions = [
     {
+        name: "get_vault_index",
+        description: "List all saved automation scripts in the Vault. Returns names, types, and descriptions. Use this to check what scripts exist before writing new ones or to suggest running an existing script.",
+        parameters: {
+            type: "object",
+            properties: {}
+        }
+    },
+    {
         name: "get_pc_diagnostics",
         description: "Get current CPU, RAM, and Disk usage percentages of the local system.",
         parameters: {
@@ -195,6 +203,18 @@ export const toolDefinitions = [
                 }
             },
             required: ["action", "fact"]
+        }
+    },
+    {
+        name: "run_daemon_script",
+        description: "Runs a script from the Automation Vault continuously in the background (as a Daemon). Use this for pro-active monitors, watchers, or infinite loops. Returns immediately with the Daemon ID. The script must write output to stdout (e.g. Write-Host) to be visible to the user.",
+        parameters: {
+            type: "object",
+            properties: {
+                scriptName: { type: "string", description: "Name of the script (e.g., monitor.ps1)" },
+                args: { type: "string", description: "Command line arguments to pass to the script" }
+            },
+            required: ["scriptName"]
         }
     }
 ];

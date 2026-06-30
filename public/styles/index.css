@@ -99,9 +99,29 @@ body {
     flex-direction: column;
     height: 100%;
     padding: 2rem;
+    overflow-y: auto;      /* ← all views scroll vertically */
+    overflow-x: hidden;
+}
+
+/* Ensure dropdown options have dark backgrounds */
+select option {
+    background-color: #1e1e24;
+    color: #fff;
+}
+
+/* Console view manages its own scroll internally — don't double-scroll it */
+#console-view {
+    overflow: hidden;
 }
 
 .view-section.active { display: flex; }
+
+/* Thin dark scrollbar for scrollable views */
+.view-section::-webkit-scrollbar { width: 5px; }
+.view-section::-webkit-scrollbar-track { background: transparent; }
+.view-section::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+.view-section::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
 
 /* Pulse Line UI */
 .visualizer-container {

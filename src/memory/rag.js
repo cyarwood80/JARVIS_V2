@@ -39,9 +39,9 @@ async function getEmbedding(text) {
         // Ollama /api/embed returns { embeddings: [[...]] }
         return data.embeddings[0];
     } catch (err) {
-        if (!GEMINI_API_KEY) throw err;
-        
-        console.log('[RAG] Local embedding failed, falling back to Cloud (Gemini).', err.message);
+        if (!GEMINI_API_KEY) throw new Error("Gemini API key is missing. Please add it in Settings.");
+
+        // Lazy instantiate
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({ model: "embedding-001" });
         const result = await model.embedContent(text);

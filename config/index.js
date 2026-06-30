@@ -11,7 +11,42 @@ export const ROOT_DIR = path.resolve(__dirname, '..');
 
 export const PORT = process.env.PORT || 3000; 
 export const OLLAMA_URL = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
-export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+export let GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+export let CLOUD_MODEL = process.env.CLOUD_MODEL || 'gemini-1.5-pro';
+
+export async function updateCloudSettings(newKey, newModel) {
+    if (newKey) {
+        GEMINI_API_KEY = newKey;
+        process.env.GEMINI_API_KEY = newKey;
+    }
+    if (newModel) {
+        CLOUD_MODEL = newModel;
+        process.env.CLOUD_MODEL = newModel;
+    }
+    
+    // Write to .env
+    const envPath = path.join(ROOT_DIR, '.env');
+    try {
+        let envContent = '';
+        try {
+            envContent = await fs.readFile(envPath, 'utf8');
+        } catch (e) {
+            // file might not exist
+        }
+        
+        envContent = envContent.split('\n').filter(l => !l.startsWith('GEMINI_API_KEY=') && !l.startsWith('CLOUD_MODEL=') && l.trim() !== '').join('\n');
+        
+        if (GEMINI_API_KEY) envContent += `\nGEMINI_API_KEY=${GEMINI_API_KEY}`;
+        if (CLOUD_MODEL) envContent += `\nCLOUD_MODEL=${CLOUD_MODEL}`;
+        envContent += '\n';
+
+        await fs.writeFile(envPath, envContent.trim() + '\n', 'utf8');
+        return true;
+    } catch (err) {
+        console.error('Failed to save cloud settings to .env:', err);
+        return false;
+    }
+}
 
 export const COLD_THRESHOLD_MS = 5 * 60 * 1000;
 export const LARGE_MODELS = new Set(['qwen2.5:32b', 'gemma4:26b']);
