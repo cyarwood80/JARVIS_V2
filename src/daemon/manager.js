@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
 import { ROOT_DIR } from '../../config/index.js';
 
@@ -84,17 +84,22 @@ export function killDaemon(id) {
     try {
         // Kill the process tree (Powershell often spawns children)
         if (process.platform === 'win32') {
-            spawn('taskkill', ['/pid', daemon.pid, '/f', '/t']);
+            try {
+                execSync(`taskkill /pid ${daemon.pid} /f /t`, { stdio: 'ignore' });
+            } catch (err) {
+                // If taskkill fails (e.g. process already dead or access denied), fallback to Node's kill
+                daemon.process.kill('SIGKILL');
+            }
         } else {
             daemon.process.kill('SIGKILL');
         }
-        daemons.delete(id);
-        if (wsBroadcast) wsBroadcast({ type: 'daemon_status_update' });
-        return true;
     } catch (e) {
         console.error("Failed to kill daemon", e);
-        return false;
+    } finally {
+        daemons.delete(id);
+        if (wsBroadcast) wsBroadcast({ type: 'daemon_status_update' });
     }
+    return true;
 }
 
 export function listDaemons() {

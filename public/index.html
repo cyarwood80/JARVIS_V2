@@ -242,8 +242,10 @@
                     <span style="font-size: 0.9rem; color: var(--text-muted); margin-left: 0.5rem;">System Online</span>
                 </div>
                 <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color);">
-                    <div>Cloud Tokens: <span id="nav-cloud-tokens" style="color: var(--accent-blue);">0</span></div>
-                    <div style="margin-top: 0.2rem;">Local Tokens: <span id="nav-local-tokens" style="color: var(--accent-green);">0</span></div>
+                    <div style="font-size: 0.7rem; margin-bottom: 0.2rem;">Cloud Tokens</div>
+                    <div style="margin-bottom: 0.4rem;">Live: <span id="nav-cloud-tokens" style="color: var(--accent-blue);">0</span> <span style="opacity:0.5; margin:0 4px">|</span> Hist: <span id="nav-cloud-hist-tokens" style="color: var(--accent-blue); opacity: 0.8;">0</span></div>
+                    <div style="font-size: 0.7rem; margin-bottom: 0.2rem;">Local Tokens</div>
+                    <div>Live: <span id="nav-local-tokens" style="color: var(--accent-green);">0</span> <span style="opacity:0.5; margin:0 4px">|</span> Hist: <span id="nav-local-hist-tokens" style="color: var(--accent-green); opacity: 0.8;">0</span></div>
                 </div>
             </div>
         </aside>
@@ -284,9 +286,15 @@
                             <div class="message system-msg" id="welcome-msg">Welcome to <strong id="welcome-agent-name">your Agent</strong> — Cloud Orchestrated, Locally Executed.</div>
                         </div>
 
-                        <div class="input-area">
-                            <textarea id="chat-input" placeholder="Initiate Orchestrator protocol..." rows="1"></textarea>
-                            <button id="send-btn" class="action-btn">Send</button>
+                        <div class="input-area" style="flex-direction: column;">
+                            <div id="chat-image-preview" style="display: none; position: relative; margin-bottom: 0.5rem; max-width: 150px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                                <img id="chat-preview-img" style="width: 100%; height: auto; display: block;" />
+                                <button id="remove-preview-btn" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;">✕</button>
+                            </div>
+                            <div style="display: flex; width: 100%; gap: 1rem;">
+                                <textarea id="chat-input" placeholder="Initiate Orchestrator protocol... (Ctrl+V to paste image)" rows="1" style="flex: 1;"></textarea>
+                                <button id="send-btn" class="action-btn">Send</button>
+                            </div>
                         </div>
                     </div>
                 </div>

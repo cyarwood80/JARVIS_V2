@@ -106,7 +106,7 @@ export class Orchestrator {
         this.genAI = null; // Also clear genAI to pick up potential key changes
     }
 
-    async processIntent(userMessage, chatHistory = [], broadcastMsg) {
+    async processIntent(userMessage, chatHistory = [], broadcastMsg, userImage = null) {
         // Format history for Gemini
         const history = [];
         let expectedRole = 'user';
@@ -120,7 +120,25 @@ export class Orchestrator {
             }
         }
 
-        const contents = [ ...history, { role: "user", parts: [{ text: userMessage }] } ];
+        const currentParts = [{ text: userMessage || "Analyze this image." }];
+        if (userImage) {
+            try {
+                // userImage is a data URL: "data:image/png;base64,iVBORw0KGgo..."
+                const matches = userImage.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    currentParts.push({
+                        inlineData: {
+                            mimeType: matches[1],
+                            data: matches[2]
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to parse base64 image data", err);
+            }
+        }
+
+        const contents = [ ...history, { role: "user", parts: currentParts } ];
         let result = null;
         let retries = 3;
         for (let i = 0; i < retries; i++) {

@@ -77,7 +77,7 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
         const scriptsDir = path.join(ROOT_DIR, 'scripts');
         if (!(await fileExists(scriptsDir))) await fs.mkdir(scriptsDir);
         
-        let filename = args.scriptName;
+        let filename = path.basename(args.scriptName);
         if (!filename.endsWith('.ps1') && !filename.endsWith('.js')) {
             filename += '.ps1';
         }
@@ -86,7 +86,14 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
         const targetDir = path.dirname(scriptPath);
         if (!(await fileExists(targetDir))) await fs.mkdir(targetDir, { recursive: true });
         
-        await fs.writeFile(scriptPath, args.code, 'utf8');
+        let rawCode = args.code || '';
+        // If the LLM hallucinated markdown code blocks (e.g. ```powershell), extract just the code inside
+        const match = rawCode.match(/```[a-z]*\r?\n([\s\S]*?)\r?\n```/i);
+        if (match) {
+            rawCode = match[1];
+        }
+        
+        await fs.writeFile(scriptPath, rawCode, 'utf8');
         
         const metaPath = path.join(scriptsDir, 'meta.json');
         let meta = {};
@@ -107,7 +114,8 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
 
     if (name === 'run_saved_script') {
         const scriptsDir = path.join(ROOT_DIR, 'scripts');
-        const scriptPath = path.join(scriptsDir, args.scriptName);
+        const filename = path.basename(args.scriptName);
+        const scriptPath = path.join(scriptsDir, filename);
         if (!(await fileExists(scriptPath))) {
             return `Error: Script '${args.scriptName}' does not exist in the Automation Vault.`;
         }
@@ -128,7 +136,8 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
 
     if (name === 'run_daemon_script') {
         const scriptsDir = path.join(ROOT_DIR, 'scripts');
-        const scriptPath = path.join(scriptsDir, args.scriptName);
+        const filename = path.basename(args.scriptName);
+        const scriptPath = path.join(scriptsDir, filename);
         if (!(await fileExists(scriptPath))) {
             return `Error: Script '${args.scriptName}' does not exist in the Automation Vault.`;
         }

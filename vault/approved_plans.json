@@ -4,5 +4,7 @@
   "get_pc_diagnostics": true,
   "list_scripts": true,
   "get_vault_index": true,
-  "desktop_notify": true
+  "desktop_notify": true,
+  "save_script": true,
+  "run_daemon_script": true
 }

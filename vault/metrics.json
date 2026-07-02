@@ -1,14 +1,22 @@
 {
-  "historicTokensLocal": 2393,
-  "historicTokensPublic": 3004,
+  "historicTokensLocal": 17743,
+  "historicTokensPublic": 16899,
   "models": {
     "llama3.1:8b": {
       "runs": 2,
       "tokens": 353
     },
     "qwen2.5:14b": {
-      "runs": 10,
-      "tokens": 2040
+      "runs": 23,
+      "tokens": 3709
+    },
+    "gemma2:9b": {
+      "runs": 8,
+      "tokens": 698
+    },
+    "qwen2.5-coder:32b": {
+      "runs": 56,
+      "tokens": 12983
     }
   }
 }

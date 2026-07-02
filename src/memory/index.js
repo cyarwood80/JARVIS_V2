@@ -55,13 +55,31 @@ Do not add conversational text, just output the pure Markdown.
                         body: JSON.stringify({
                             model: bestModel,
                             prompt: prompt,
-                            stream: false,
+                            stream: true,
                             keep_alive: '2h'
                         })
                     });
                     
                     if (!res.ok) throw new Error("Local model failed to consolidate.");
-                    const data = await res.json();
+                    
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let fullText = '';
+                    
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value, { stream: true });
+                        const lines = chunk.split('\n').filter(l => l.trim() !== '');
+                        for (const line of lines) {
+                            try {
+                                const parsed = JSON.parse(line);
+                                if (parsed.response) fullText += parsed.response;
+                            } catch (e) {}
+                        }
+                    }
+                    
+                    const data = { response: fullText };
                     
                     let cleanedMemory = data.response?.trim();
                     if (!cleanedMemory) throw new Error("Empty response");

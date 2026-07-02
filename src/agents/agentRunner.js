@@ -80,6 +80,7 @@ ${toolsDescription}
 
 Rules:
 - ALWAYS respond with JSON only. No markdown, no prose outside JSON.
+- When writing code or scripts (e.g. for save_script), provide ONLY the raw, executable code. NO markdown blocks, NO conversational text.
 - Use "finish" as soon as you have a complete answer. Do not loop unnecessarily.
 - If a tool fails, try an alternative or finish with what you have.
 - Max ${MAX_TURNS} turns — if you reach the limit, finish immediately.`;

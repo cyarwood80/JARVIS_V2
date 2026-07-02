@@ -1,0 +1,8 @@
+{
+  "capability": "reasoning",
+  "instruction": "The user wants to review and correct the script that failed with syntax errors. This requires reading the script, correcting the code, and saving it.",
+  "action": "spawn_agents",
+  "actionArgs": {
+    "goal": "Read the contents of test_daemon.ps1, fix any syntax errors (such as missing parentheses or string terminators), and save the corrected script back to the vault."
+  }
+}

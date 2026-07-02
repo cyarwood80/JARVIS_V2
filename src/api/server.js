@@ -7,7 +7,7 @@ import { PORT, ROOT_DIR, AGENT_NAME } from '../../config/index.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(ROOT_DIR, 'public')));
 
 import { Orchestrator } from '../orchestrator/index.js';
@@ -19,6 +19,7 @@ import { listDaemons, killDaemon, setDaemonBroadcaster } from '../daemon/manager
 
 import { METRICS, MODEL_REGISTRY, modelWarmth, COLD_THRESHOLD_MS, loadMetrics } from '../../config/index.js';
 import { getPcDiagnostics } from '../hardware/system.js';
+import { generateSpeechBuffer } from '../voice/tts.js';
 
 // Give daemon manager access to broadcast events
 setDaemonBroadcaster((msgObj) => {
@@ -268,6 +269,31 @@ app.get('/api/scripts', async (req, res) => {
     }
 });
 
+app.post('/api/scripts/delete', async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ error: 'Script name required' });
+        
+        const normalizedName = path.normalize(name).replace(/^(\.\.[\/\\])+/, '');
+        const targetPath = path.join(ROOT_DIR, 'scripts', normalizedName);
+        
+        if (!targetPath.startsWith(path.join(ROOT_DIR, 'scripts'))) {
+            return res.status(403).json({ error: 'Invalid path' });
+        }
+        
+        await fs.unlink(targetPath);
+        
+        if (typeof orchestrator !== 'undefined' && orchestrator.invalidateModel) {
+            orchestrator.invalidateModel();
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Failed to delete script:', err);
+        res.status(500).json({ error: 'Deletion failed' });
+    }
+});
+
 // Legacy history API (reads from active conversation)
 app.get('/api/history', async (req, res) => {
     const conv = await getOrCreateConversation();
@@ -283,18 +309,33 @@ app.delete('/api/history', async (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/api/tts', async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) return res.status(400).json({ error: 'Text required' });
+        
+        const buffer = await generateSpeechBuffer(text);
+        res.set('Content-Type', 'audio/wav');
+        res.send(buffer);
+    } catch (err) {
+        console.error('TTS Error:', err);
+        res.status(500).json({ error: 'TTS failed' });
+    }
+});
+
 app.post('/v1/chat/completions', async (req, res) => {
     let messages = req.body.messages || [];
     const userQuestion = messages[messages.length - 1]?.content || "";
+    const userImage = messages[messages.length - 1]?.image || null;
     
     const conv = await getOrCreateConversation();
     
-    // Save user message
-    if (userQuestion) {
-        conv.messages.push({ role: 'user', content: userQuestion });
+    // Save user message (omitting base64 image from permanent text logs to save space)
+    if (userQuestion || userImage) {
+        conv.messages.push({ role: 'user', content: userQuestion || "[Image]" });
         // Auto-title from first message
         if (conv.messages.filter(m => m.role === 'user').length === 1) {
-            conv.title = userQuestion.length > 50 ? userQuestion.slice(0, 47) + '...' : userQuestion;
+            conv.title = userQuestion.length > 50 ? userQuestion.slice(0, 47) + '...' : (userQuestion || "Image Request");
         }
     }
     
@@ -312,8 +353,8 @@ app.post('/v1/chat/completions', async (req, res) => {
         const userMsgCount = conv.messages.filter(m => m.role === 'user').length;
         let responseData;
         
-        if (userMsgCount === 1) {
-            responseData = await orchestrator.processIntent(userQuestion, conv.messages.slice(0, -1), broadcastMsg);
+        if (userMsgCount === 1 || userImage) {
+            responseData = await orchestrator.processIntent(userQuestion, conv.messages.slice(0, -1), broadcastMsg, userImage);
         } else {
             responseData = await orchestrator.processIntentLocalFirst(userQuestion, conv.messages.slice(0, -1), broadcastMsg);
         }

@@ -108,7 +108,7 @@ export function getBestLocalModel(requiredCapability) {
 
 export async function runLocalModel(modelName, messages, systemPrompt = "") {
     const ollamaMessages = systemPrompt ? [{ role: "system", content: systemPrompt }, ...messages] : messages;
-    const body = { model: modelName, messages: ollamaMessages, stream: false, keep_alive: "2h" };
+    const body = { model: modelName, messages: ollamaMessages, stream: true, keep_alive: "2h" };
 
     const res = await fetch(`${OLLAMA_URL}/api/chat`, {
         method: 'POST',
@@ -117,12 +117,38 @@ export async function runLocalModel(modelName, messages, systemPrompt = "") {
     });
 
     if (!res.ok) throw new Error(`Ollama returned status ${res.status}`);
-    const data = await res.json();
     
-    if (data.eval_count) {
-        updateLocalTokens(modelName, data.eval_count);
+    // Read stream to bypass 5-minute headersTimeout in Node.js fetch for slow local reasoning
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let evalCount = 0;
+    
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(l => l.trim() !== '');
+        for (const line of lines) {
+            try {
+                const parsed = JSON.parse(line);
+                if (parsed.message?.content) {
+                    fullText += parsed.message.content;
+                }
+                if (parsed.eval_count) {
+                    evalCount = parsed.eval_count;
+                }
+            } catch (e) {
+                // Ignore incomplete chunks, standard for streaming JSON
+            }
+        }
+    }
+    
+    if (evalCount) {
+        updateLocalTokens(modelName, evalCount);
     }
     
     markModelWarm(modelName);
-    return data.message?.content || "";
+    return fullText;
 }

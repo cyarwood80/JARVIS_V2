@@ -88,6 +88,28 @@ document.addEventListener('DOMContentLoaded', () => {
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
 
+    function showThinkingIndicator() {
+        if (document.getElementById('thinking-indicator')) return;
+        const div = document.createElement('div');
+        div.id = 'thinking-indicator';
+        div.className = 'message agent-msg';
+        div.innerHTML = `<strong>${agentName}:</strong><br>
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>`;
+        chatHistory.appendChild(div);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function removeThinkingIndicator() {
+        const indicator = document.getElementById('thinking-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+
     // ── CONVERSATION HISTORY ──
     let activeConvId = null;
     let chatMessages = [];
@@ -184,16 +206,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('new-chat-btn')?.addEventListener('click', startNewChat);
 
+    function playVoice(text) {
+        // Strip basic markdown (bold, italic, code blocks)
+        const cleanText = text.replace(/[*_~`]/g, '');
+        fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: cleanText })
+        })
+        .then(res => res.blob())
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.play().catch(e => console.error('Audio playback failed:', e));
+        })
+        .catch(e => console.error('TTS fetch error:', e));
+    }
+
+    let currentImageData = null;
+    const previewContainer = document.getElementById('chat-image-preview');
+    const previewImg = document.getElementById('chat-preview-img');
+    const removePreviewBtn = document.getElementById('remove-preview-btn');
+
+    if (removePreviewBtn) {
+        removePreviewBtn.addEventListener('click', () => {
+            currentImageData = null;
+            previewContainer.style.display = 'none';
+            previewImg.src = '';
+        });
+    }
+
+    chatInput.addEventListener('paste', (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    currentImageData = event.target.result;
+                    previewImg.src = currentImageData;
+                    previewContainer.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+    });
+
     sendBtn.addEventListener('click', async () => {
         const text = chatInput.value.trim();
-        if (!text) return;
+        if (!text && !currentImageData) return;
         
-        addMessage('user', text);
+        addMessage('user', text || "[Sent an image]");
         chatInput.value = '';
         chatInput.style.height = 'auto';
-        chatMessages.push({ role: "user", content: text });
+        
+        const userPayload = { role: "user", content: text };
+        if (currentImageData) {
+            userPayload.image = currentImageData;
+            // Clear preview
+            currentImageData = null;
+            previewContainer.style.display = 'none';
+            previewImg.src = '';
+        }
+        chatMessages.push(userPayload);
 
         setSystemState('cloud', 'ORCHESTRATOR PLANNING (GEMINI)');
+        showThinkingIndicator();
         
         try {
             const res = await fetch('/v1/chat/completions', {
@@ -208,9 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             const reply = data.choices[0].message.content;
+            removeThinkingIndicator();
             addMessage('agent', reply);
             chatMessages.push({ role: "assistant", content: reply });
+            playVoice(reply);
         } catch (e) {
+            removeThinkingIndicator();
             addMessage('agent', `[Error] ${e.message}`);
         }
         
@@ -255,30 +337,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 terminalOutput.appendChild(div);
                 terminalOutput.scrollTop = terminalOutput.scrollHeight;
             }
-            if (data.type === 'activity') updateStatus(data.agent, data.activity);
-            if (data.type === 'approval_required') showApprovalModal(data.data);
-            if (data.type === 'log') appendLog(data.message, data.isError);
-            if (data.type === 'tool_started') appendLog(`[TOOL] Starting: ${data.toolName}`);
-            
-            if (data.type === 'daemon_log') {
-                const logsDiv = document.getElementById('daemon-logs');
-                if (logsDiv) {
-                    if (logsDiv.innerHTML.includes('Waiting for background tasks...')) logsDiv.innerHTML = '';
-                    const div = document.createElement('div');
-                    div.style.color = data.isError ? '#ef4444' : '#a8f5c5';
-                    div.textContent = `[${data.name}] ${data.message}`;
-                    logsDiv.appendChild(div);
-                    logsDiv.scrollTop = logsDiv.scrollHeight;
-                }
+        }
+        
+        if (data.type === 'activity') {
+            updateStatus(data.agent, data.activity);
+            if (data.activity === 'IDLE') {
+                // Re-enable input if idle
             }
-            if (data.type === 'daemon_status_update') {
-                refreshDaemons();
+        }
+        
+        if (data.type === 'approval_required') showApprovalModal(data.data);
+        
+        if (data.type === 'tool_started') {
+            if (typeof appendLog !== 'undefined') appendLog(`[TOOL] Starting: ${data.toolName}`);
+        }
+        
+        if (data.type === 'daemon_log') {
+            const logsDiv = document.getElementById('daemon-logs');
+            if (logsDiv) {
+                if (logsDiv.innerHTML.includes('Waiting for background tasks...')) logsDiv.innerHTML = '';
+                const div = document.createElement('div');
+                div.style.color = data.isError ? '#ef4444' : '#a8f5c5';
+                div.textContent = `[${data.name}] ${data.message}`;
+                logsDiv.appendChild(div);
+                logsDiv.scrollTop = logsDiv.scrollHeight;
             }
-            
-            // Re-enable input if idle
-            if (data.type === 'activity' && data.activity === 'IDLE') {
-            }
-        } else if (data.type === 'status') {
+        }
+        
+        if (data.type === 'daemon_status_update') {
+            refreshDaemons();
+        }
+
+        if (data.type === 'status') {
             if (data.stage === 'thinking')                                               setSystemState('cloud', data.message.toUpperCase());
             else if (data.stage === 'routing')                                           setSystemState('local', `JSON MAP RETURNED: ${data.message.toUpperCase()}`);
             else if (data.stage === 'planning')                                          setSystemState('cloud', data.message.toUpperCase());
@@ -300,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── POLLING: STATS, MODELS, SCRIPTS ──
     async function fetchStats() {
-        if (!document.getElementById('system-view').classList.contains('active')) return;
         try {
             const res = await fetch('/api/stats');
             const stats = await res.json();
@@ -328,6 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (document.getElementById('nav-cloud-tokens')) {
                     document.getElementById('nav-cloud-tokens').innerText = stats.metrics.sessionTokensPublic || 0;
                     document.getElementById('nav-local-tokens').innerText = stats.metrics.sessionTokensLocal || 0;
+                    document.getElementById('nav-cloud-hist-tokens').innerText = stats.metrics.historicTokensPublic || 0;
+                    document.getElementById('nav-local-hist-tokens').innerText = stats.metrics.historicTokensLocal || 0;
                 }
             }
         } catch (e) { console.error('Stats error:', e); }
@@ -375,15 +466,32 @@ document.addEventListener('DOMContentLoaded', () => {
             
             data.scripts.forEach(script => {
                 const html = `
-                    <div class="model-fleet-card warm">
-                        <div class="model-fleet-name">${script.name}</div>
-                        <div class="model-fleet-role">${script.description || 'Automation Script'}</div>
+                    <div class="model-fleet-card warm" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div class="model-fleet-name">${script.name}</div>
+                            <div class="model-fleet-role">${script.description || 'Automation Script'}</div>
+                        </div>
+                        <button class="action-btn" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="window.deleteScript('${script.name}')">Delete</button>
                     </div>
                 `;
                 grid.innerHTML += html;
             });
         } catch (e) { console.error('Scripts error:', e); }
     }
+
+    window.deleteScript = async (name) => {
+        if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+        try {
+            await fetch('/api/scripts/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            fetchScripts();
+        } catch (e) {
+            console.error('Failed to delete script:', e);
+        }
+    };
 
     setInterval(fetchStats, 500);
     setInterval(fetchModels, 5000);
@@ -397,7 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── DAEMONS LOGIC ─────────────────────────────────────────────────────────────
     async function refreshDaemons() {
         try {
-            const res = await fetch(`${protocol}//${window.location.host}/api/daemons`);
+            const res = await fetch('/api/daemons');
             if (!res.ok) return;
             const daemons = await res.json();
             
@@ -444,7 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     window.killDaemon = async (id) => {
         try {
-            await fetch(`${protocol}//${window.location.host}/api/daemons/kill`, {
+            await fetch('/api/daemons/kill', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id })
