@@ -1,6 +1,0 @@
-{
-  "capability": "general",
-  "instruction": "Analyze the provided image of the Event Viewer logs. Inform the user that yes, there is one Error reported. It is a .NET Runtime error (Event ID 1000) at 02/07/2026 05:56:09. Also mention there is a Warning for .NET Runtime at the exact same timestamp.",
-  "action": "reply_to_user",
-  "actionArgs": {}
-}

@@ -1,6 +1,0 @@
-{
-  "capability": "general",
-  "instruction": "Analyze the attached screenshot of the Windows Event Viewer. Inform the user that yes, there is one Error reported: Date and Time: 02/07/2026 05:56:09, Source: .NET Runtime, Event ID: 1000. Additionally, note there is a Warning immediately preceding it at the exact same time, also from the .NET Runtime.",
-  "action": "reply_to_user",
-  "actionArgs": {}
-}

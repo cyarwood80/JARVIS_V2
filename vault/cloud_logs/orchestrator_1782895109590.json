@@ -1,6 +1,0 @@
-{
-  "capability": "reasoning",
-  "instruction": "The user is asking what is in your memory. Use the memory tool to retrieve your stored memories and summarize them for the user.",
-  "action": "manage_memory",
-  "actionArgs": {}
-}

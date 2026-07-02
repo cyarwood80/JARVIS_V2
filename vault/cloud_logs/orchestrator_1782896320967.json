@@ -1,8 +1,0 @@
-{
-  "capability": "reasoning",
-  "instruction": "The user wants to monitor VMware Workstation performance, analyze issues, and receive desktop notifications with proposed fixes. This requires multi-step handling to build a monitoring, analysis, and notification pipeline.",
-  "action": "spawn_agents",
-  "actionArgs": {
-    "goal": "Develop a monitoring solution for VMware Workstation that tracks performance metrics. If anomalies or issues are detected, analyze them to formulate a correction proposal and send a desktop notification to the user."
-  }
-}
