@@ -10,9 +10,9 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # --------------------------------------------------------------
-# [1/5] Node.js & NPM
+# [1/6] Node.js & NPM
 # --------------------------------------------------------------
-Write-Host "[1/5] Checking Node.js & NPM..." -ForegroundColor Yellow
+Write-Host "[1/6] Checking Node.js & NPM..." -ForegroundColor Yellow
 if (!(Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "  Node.js not found. Attempting to install via Winget..." -ForegroundColor Cyan
     if (Get-Command winget -ErrorAction SilentlyContinue) {
@@ -35,10 +35,10 @@ npm install
 if ($LASTEXITCODE -ne 0) { Write-Host "  npm install failed." -ForegroundColor Red; exit 1 }
 
 # --------------------------------------------------------------
-# [2/5] Ollama
+# [2/6] Ollama
 # --------------------------------------------------------------
 Write-Host ""
-Write-Host "[2/5] Checking Ollama..." -ForegroundColor Yellow
+Write-Host "[2/6] Checking Ollama..." -ForegroundColor Yellow
 if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Host "  Ollama not found. Downloading installer..." -ForegroundColor Cyan
     $ollamaInstaller = "$env:TEMP\OllamaSetup.exe"
@@ -55,10 +55,68 @@ if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
 Write-Host "  Ollama found." -ForegroundColor Green
 
 # --------------------------------------------------------------
-# [3/5] OpenClaw Gateway (WhatsApp)
+# [3/6] Assessing Hardware & Local AI Models
 # --------------------------------------------------------------
 Write-Host ""
-Write-Host "[3/5] OpenClaw Gateway (WhatsApp)..." -ForegroundColor Yellow
+Write-Host "[3/6] Assessing Hardware & Local AI Models..." -ForegroundColor Yellow
+
+$ramGB = 0
+$vramGB = 0
+
+try {
+    $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+    if ($cs) {
+        $ramGB = [math]::Round($cs.TotalPhysicalMemory / 1GB)
+    }
+    
+    $vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
+    if ($vc) {
+        foreach ($v in $vc) {
+            if ($v.AdapterRAM) {
+                $gb = [math]::Round($v.AdapterRAM / 1GB)
+                if ($gb -gt $vramGB) { $vramGB = $gb }
+            }
+        }
+    }
+} catch {
+    Write-Host "  Could not fully assess hardware." -ForegroundColor DarkGray
+}
+
+Write-Host "  System RAM: ${ramGB}GB" -ForegroundColor DarkGray
+Write-Host "  Dedicated VRAM: ${vramGB}GB" -ForegroundColor DarkGray
+
+$recommendedModel = "deepseek-r1:1.5b"
+$capability = "Low-end"
+
+if ($ramGB -gt 15 -and $vramGB -gt 6) {
+    $recommendedModel = "deepseek-r1:7b"
+    $capability = "High-end"
+} elseif ($ramGB -ge 8) {
+    $recommendedModel = "deepseek-r1:1.5b"
+    $capability = "Mid-range"
+}
+
+Write-Host "  Hardware Capability: $capability" -ForegroundColor Cyan
+Write-Host "  Recommended Local AI Model: $recommendedModel" -ForegroundColor Green
+
+$downloadNow = Read-Host "  Do you want to download $recommendedModel now? (Y/N) [Default: Y]"
+if ([string]::IsNullOrWhiteSpace($downloadNow) -or $downloadNow.ToLower().StartsWith("y")) {
+    Write-Host "  Pulling $recommendedModel via Ollama..." -ForegroundColor DarkGray
+    ollama pull $recommendedModel
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Successfully downloaded $recommendedModel." -ForegroundColor Green
+    } else {
+        Write-Host "  Failed to download $recommendedModel." -ForegroundColor Red
+    }
+} else {
+    Write-Host "  Skipping model download." -ForegroundColor DarkGray
+}
+
+# --------------------------------------------------------------
+# [4/6] OpenClaw Gateway (WhatsApp)
+# --------------------------------------------------------------
+Write-Host ""
+Write-Host "[4/6] OpenClaw Gateway (WhatsApp)..." -ForegroundColor Yellow
 $openClawDir = "src\gateway\openclaw"
 if (Test-Path "$openClawDir\package.json") {
     Write-Host "  Installing OpenClaw dependencies..." -ForegroundColor DarkGray
@@ -75,10 +133,10 @@ if (Test-Path "$openClawDir\package.json") {
 }
 
 # --------------------------------------------------------------
-# [4/5] Environment Config
+# [5/6] Environment Config
 # --------------------------------------------------------------
 Write-Host ""
-Write-Host "[4/5] Environment Configuration..." -ForegroundColor Yellow
+Write-Host "[5/6] Environment Configuration..." -ForegroundColor Yellow
 if (!(Test-Path ".env")) {
     Write-Host "  No .env file found. Creating from template..." -ForegroundColor DarkGray
     Set-Content -Path ".env" -Value "PORT=3000`nOLLAMA_URL=http://127.0.0.1:11434`nGEMINI_API_KEY=`nDEFAULT_LOCAL_MODEL=hermes3"
@@ -88,10 +146,10 @@ if (!(Test-Path ".env")) {
 }
 
 # --------------------------------------------------------------
-# [5/5] WhatsApp Authentication
+# [6/6] WhatsApp Authentication
 # --------------------------------------------------------------
 Write-Host ""
-Write-Host "[5/5] WhatsApp Authentication..." -ForegroundColor Yellow
+Write-Host "[6/6] WhatsApp Authentication..." -ForegroundColor Yellow
 if (Test-Path "$openClawDir\package.json") {
     $authDir = "$openClawDir\.wwebjs_auth"
     if (!(Test-Path $authDir)) {
