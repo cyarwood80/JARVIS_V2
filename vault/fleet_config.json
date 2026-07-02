@@ -1,5 +1,0 @@
-{
-  "planner": "qwen2.5-coder:32b",
-  "synthesiser": "deepseek-r1:32b",
-  "chat": "qwen2.5-coder:32b"
-}

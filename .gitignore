@@ -34,3 +34,5 @@ vault/rag_memory.json
 vault/metrics.json
 vault/approved_commands.json
 vault/approved_plans.json
+vault/agent_config.json
+vault/fleet_config.json
