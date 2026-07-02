@@ -44,7 +44,8 @@ if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
     $ollamaInstaller = "$env:TEMP\OllamaSetup.exe"
     Invoke-WebRequest -Uri "https://ollama.com/download/OllamaSetup.exe" -OutFile $ollamaInstaller
     Write-Host "  Running Ollama installer (silent)..." -ForegroundColor DarkGray
-    Start-Process -FilePath $ollamaInstaller -ArgumentList "/S" -Wait
+    $installerProc = Start-Process -FilePath $ollamaInstaller -ArgumentList "/S" -PassThru
+    while (-not $installerProc.HasExited) { Start-Sleep -Seconds 2 }
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
     if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
         Write-Host "  Ollama installed but not in PATH. Restart your terminal and run setup.ps1 again." -ForegroundColor Red

@@ -207,8 +207,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('new-chat-btn')?.addEventListener('click', startNewChat);
 
     function playVoice(text) {
-        // Strip basic markdown (bold, italic, code blocks)
-        const cleanText = text.replace(/[*_~`]/g, '');
+        // 1. Strip entire code blocks
+        let cleanText = text.replace(/```[\s\S]*?```/g, '');
+        // 2. Strip inline code
+        cleanText = cleanText.replace(/`[^`]*`/g, '');
+        // 3. Replace URLs with the word "link"
+        cleanText = cleanText.replace(/https?:\/\/[^\s]+/g, 'link');
+        // 4. Strip basic markdown chars (bold, italic, headers)
+        cleanText = cleanText.replace(/[*_~#]/g, '').trim();
+
+        if (!cleanText) return;
+
         fetch('/api/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
