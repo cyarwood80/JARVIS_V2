@@ -93,6 +93,9 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
             rawCode = match[1];
         }
         
+        if (filename.endsWith('.ps1') && !rawCode.startsWith('\uFEFF')) {
+            rawCode = '\uFEFF' + rawCode;
+        }
         await fs.writeFile(scriptPath, rawCode, 'utf8');
         
         const metaPath = path.join(scriptsDir, 'meta.json');
@@ -273,7 +276,8 @@ export async function executeTool(name, args, chatHistory, broadcastMsg) {
 
         return new Promise(async (resolve) => {
             const tmpFile = path.join(ROOT_DIR, `_${AGENT_NAME}_tmp_${Date.now()}.ps1`);
-            await fs.writeFile(tmpFile, commandStr, 'utf8');
+            const psCode = commandStr.startsWith('\uFEFF') ? commandStr : '\uFEFF' + commandStr;
+            await fs.writeFile(tmpFile, psCode, 'utf8');
             exec(`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${tmpFile}"`,
                 { timeout: 15000 },
                 async (err, stdout, stderr) => {

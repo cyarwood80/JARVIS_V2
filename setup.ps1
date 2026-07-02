@@ -1,17 +1,17 @@
-# setup.ps1 — Jarvis V2 First-Run Setup Script
+# setup.ps1 - Jarvis V2 First-Run Setup Script
 # Run this once before starting the agent for the first time.
 
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "   AUTONOMOUS AGENT HUB V2 — SETUP        " -ForegroundColor Cyan
+Write-Host "   AUTONOMOUS AGENT HUB V2 - SETUP        " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # [1/5] Node.js & NPM
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 Write-Host "[1/5] Checking Node.js & NPM..." -ForegroundColor Yellow
 if (!(Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "  Node.js not found. Attempting to install via Winget..." -ForegroundColor Cyan
@@ -34,9 +34,9 @@ Write-Host "  Installing NPM dependencies..." -ForegroundColor DarkGray
 npm install
 if ($LASTEXITCODE -ne 0) { Write-Host "  npm install failed." -ForegroundColor Red; exit 1 }
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # [2/5] Ollama
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 Write-Host ""
 Write-Host "[2/5] Checking Ollama..." -ForegroundColor Yellow
 if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
@@ -53,9 +53,9 @@ if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
 }
 Write-Host "  Ollama found." -ForegroundColor Green
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # [3/5] OpenClaw Gateway (WhatsApp)
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 Write-Host ""
 Write-Host "[3/5] OpenClaw Gateway (WhatsApp)..." -ForegroundColor Yellow
 $openClawDir = "src\gateway\openclaw"
@@ -73,9 +73,9 @@ if (Test-Path "$openClawDir\package.json") {
     Write-Host "  OpenClaw directory not found. Skipping WhatsApp gateway." -ForegroundColor DarkGray
 }
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # [4/5] Environment Config
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 Write-Host ""
 Write-Host "[4/5] Environment Configuration..." -ForegroundColor Yellow
 if (!(Test-Path ".env")) {
@@ -86,9 +86,9 @@ if (!(Test-Path ".env")) {
     Write-Host "  .env already exists. Skipping." -ForegroundColor DarkGray
 }
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # [5/5] WhatsApp Authentication
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 Write-Host ""
 Write-Host "[5/5] WhatsApp Authentication..." -ForegroundColor Yellow
 if (Test-Path "$openClawDir\package.json") {
@@ -106,9 +106,9 @@ if (Test-Path "$openClawDir\package.json") {
     Write-Host "  OpenClaw not present. Skipping WhatsApp auth." -ForegroundColor DarkGray
 }
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # DONE
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "   Setup Complete!                         " -ForegroundColor Cyan

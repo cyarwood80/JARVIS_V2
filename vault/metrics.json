@@ -1,5 +1,5 @@
 {
-  "historicTokensLocal": 17743,
+  "historicTokensLocal": 18368,
   "historicTokensPublic": 16899,
   "models": {
     "llama3.1:8b": {
@@ -17,6 +17,10 @@
     "qwen2.5-coder:32b": {
       "runs": 56,
       "tokens": 12983
+    },
+    "deepseek-r1:32b": {
+      "runs": 1,
+      "tokens": 625
     }
   }
 }
